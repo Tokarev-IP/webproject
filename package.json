@@ -23,6 +23,7 @@
     "@aws-sdk/util-dynamodb": "^3.303.0",
     "aws-cdk-lib": "2.88.0",
     "constructs": "^10.0.0",
+    "shared": "^0.2.0",
     "source-map-support": "^0.5.21"
   }
 }
