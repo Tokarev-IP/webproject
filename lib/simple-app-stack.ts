@@ -6,6 +6,7 @@ import * as custom from "aws-cdk-lib/custom-resources";
 import { generateBatch } from "./shared/util";
 import { movies } from "./seed/movies";
 import { Construct } from 'constructs';
+import * as apig from 'aws-cdk-lib/aws-apigateway';
 
 export class SimpleAppStack extends cdk.Stack {
     constructor(scope: Construct, id: string, props?: cdk.StackProps) {
@@ -74,7 +75,6 @@ export class SimpleAppStack extends cdk.Stack {
                 allowedOrigins: ["*"],
             },
         });
-        moviesTable.grantReadData(getMovieByIdFn)
         new cdk.CfnOutput(this, "Get Movie Function Url", { value: getMovieByIdURL.url });
 
         //Get All Movies lambda function
@@ -99,8 +99,37 @@ export class SimpleAppStack extends cdk.Stack {
                 allowedOrigins: ["*"],
             },
         });
-        moviesTable.grantReadData(getAllMoviesFn)
         new cdk.CfnOutput(this, "Get All Movies Function Url", { value: getAllMoviesURL.url });
+
+        //permissions
+        moviesTable.grantReadData(getMovieByIdFn)
+        moviesTable.grantReadData(getAllMoviesFn)
+
+        // REST API 
+        const api = new apig.RestApi(this, "RestAPI", {
+            description: "demo api",
+            deployOptions: {
+                stageName: "dev",
+            },
+            defaultCorsPreflightOptions: {
+                allowHeaders: ["Content-Type", "X-Amz-Date"],
+                allowMethods: ["OPTIONS", "GET", "POST", "PUT", "PATCH", "DELETE"],
+                allowCredentials: true,
+                allowOrigins: ["*"],
+            },
+        });
+
+        const moviesEndpoint = api.root.addResource("movies");
+        moviesEndpoint.addMethod(
+            "GET",
+            new apig.LambdaIntegration(getAllMoviesFn, { proxy: true })
+        );
+
+        const movieEndpoint = moviesEndpoint.addResource("{movieId}");
+        movieEndpoint.addMethod(
+            "GET",
+            new apig.LambdaIntegration(getMovieByIdFn, { proxy: true })
+        );
 
     }
 }
