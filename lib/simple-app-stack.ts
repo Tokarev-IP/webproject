@@ -101,9 +101,23 @@ export class SimpleAppStack extends cdk.Stack {
         });
         new cdk.CfnOutput(this, "Get All Movies Function Url", { value: getAllMoviesURL.url });
 
+        //Post a movie
+        const newMovieFn = new lambdanode.NodejsFunction(this, "AddMovieFn", {
+            architecture: lambda.Architecture.ARM_64,
+            runtime: lambda.Runtime.NODEJS_16_X,
+            entry: `${__dirname}/lambdas/addMovie.ts`,
+            timeout: cdk.Duration.seconds(10),
+            memorySize: 128,
+            environment: {
+                TABLE_NAME: moviesTable.tableName,
+                REGION: "us-east-1",
+            },
+        });
+
         //permissions
         moviesTable.grantReadData(getMovieByIdFn)
         moviesTable.grantReadData(getAllMoviesFn)
+        moviesTable.grantReadWriteData(newMovieFn)
 
         // REST API 
         const api = new apig.RestApi(this, "RestAPI", {
@@ -119,16 +133,25 @@ export class SimpleAppStack extends cdk.Stack {
             },
         });
 
+        //Endpoints
         const moviesEndpoint = api.root.addResource("movies");
+        const movieEndpoint = moviesEndpoint.addResource("{movieId}");
+
+        //Methods
+        //GET movies
         moviesEndpoint.addMethod(
             "GET",
             new apig.LambdaIntegration(getAllMoviesFn, { proxy: true })
         );
-
-        const movieEndpoint = moviesEndpoint.addResource("{movieId}");
+        //GET movie by Id
         movieEndpoint.addMethod(
             "GET",
             new apig.LambdaIntegration(getMovieByIdFn, { proxy: true })
+        );
+        //POST movie
+        moviesEndpoint.addMethod(
+            "POST",
+            new apig.LambdaIntegration(newMovieFn, { proxy: true })
         );
 
     }

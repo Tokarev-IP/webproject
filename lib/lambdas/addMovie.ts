@@ -1,33 +1,53 @@
 import { APIGatewayProxyHandlerV2 } from "aws-lambda";
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
-import { DynamoDBDocumentClient, ScanCommand } from "@aws-sdk/lib-dynamodb";
+import { DynamoDBDocumentClient, PutCommand } from "@aws-sdk/lib-dynamodb";
+import Ajv from 'ajv';
+import schema from '../shared/types.schema.json';
+
+const ajv = new Ajv();
+const isValidBodyParams = ajv.compile(schema.definitions["Movie"] || {});
 
 const ddbDocClient = createDDbDocClient();
 
 export const handler: APIGatewayProxyHandlerV2 = async (event, context) => {
     try {
+        // Print Event
         console.log("Event: ", event);
+        const body = event.body ? JSON.parse(event.body) : undefined;
+        if (!body) {
+            return {
+                statusCode: 500,
+                headers: {
+                    "content-type": "application/json",
+                },
+                body: JSON.stringify({ message: "Missing request body" }),
+            };
+        }
+        if (!isValidBodyParams(body)) {
+            return {
+                statusCode: 500,
+                headers: {
+                    "content-type": "application/json",
+                },
+                body: JSON.stringify({
+                    message: `Incorrect type. Must match Movie schema`,
+                    schema: schema.definitions["Movie"],
+                }),
+            };
+        }
 
-        // Scanning command operation
         const commandOutput = await ddbDocClient.send(
-            new ScanCommand({
+            new PutCommand({
                 TableName: process.env.TABLE_NAME,
+                Item: body,
             })
         );
-
-        console.log('ScanCommand response: ', commandOutput)
-
-        const body = {
-            data: commandOutput.Items, // Outpit data from Scanning command
-        };
-
-        // Return Response
         return {
-            statusCode: 200,
+            statusCode: 201,
             headers: {
                 "content-type": "application/json",
             },
-            body: JSON.stringify(body),
+            body: JSON.stringify({ message: "Movie added" }),
         };
     } catch (error) {
         console.log(JSON.stringify(error));
