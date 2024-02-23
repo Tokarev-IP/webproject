@@ -33,22 +33,6 @@ export class SimpleAppStack extends cdk.Stack {
             sortKey: { name: "roleName", type: dynamodb.AttributeType.STRING },
         });
 
-        //Simple function
-        const simpleFn = new lambdanode.NodejsFunction(this, "SimpleFn", {
-            architecture: lambda.Architecture.ARM_64,
-            runtime: lambda.Runtime.NODEJS_16_X,
-            entry: `${__dirname}/lambdas/simple.ts`,
-            timeout: cdk.Duration.seconds(10),
-            memorySize: 128,
-        });
-        const simpleFnURL = simpleFn.addFunctionUrl({
-            authType: lambda.FunctionUrlAuthType.AWS_IAM,
-            cors: {
-                allowedOrigins: ["*"],
-            },
-        });
-        new cdk.CfnOutput(this, "Simple Function Url", { value: simpleFnURL.url });
-
         //Add an AWSCustomResource
         new custom.AwsCustomResource(this, "moviesddbInitData", {
             onCreate: {
@@ -132,8 +116,8 @@ export class SimpleAppStack extends cdk.Stack {
             }
         );
 
-        //Post a movie
-        const newMovieFn = new lambdanode.NodejsFunction(this, "AddMovieFn", {
+        //Post Movie
+        const addMovieFn = new lambdanode.NodejsFunction(this, "Add Movie Fn", {
             architecture: lambda.Architecture.ARM_64,
             runtime: lambda.Runtime.NODEJS_16_X,
             entry: `${__dirname}/lambdas/addMovie.ts`,
@@ -145,10 +129,24 @@ export class SimpleAppStack extends cdk.Stack {
             },
         });
 
+        //Delete Movie by Id
+        const deleteMovieByIdFn = new lambdanode.NodejsFunction(this, "Delete Movie by Id Fn", {
+            architecture: lambda.Architecture.ARM_64,
+            runtime: lambda.Runtime.NODEJS_16_X,
+            entry: `${__dirname}/lambdas/deleteMovieById.ts`,
+            timeout: cdk.Duration.seconds(10),
+            memorySize: 128,
+            environment: {
+                TABLE_NAME: moviesTable.tableName,
+                REGION: "us-east-1",
+            },
+        });
+
         //permissions
         moviesTable.grantReadData(getMovieByIdFn)
         moviesTable.grantReadData(getAllMoviesFn)
-        moviesTable.grantReadWriteData(newMovieFn)
+        moviesTable.grantReadWriteData(addMovieFn)
+        moviesTable.grantReadWriteData(deleteMovieByIdFn)
         movieCastsTable.grantReadData(getMovieCastMembersFn);
 
         // REST API 
@@ -169,6 +167,7 @@ export class SimpleAppStack extends cdk.Stack {
         const moviesEndpoint = api.root.addResource("movies");
         const movieEndpoint = moviesEndpoint.addResource("{movieId}");
         const movieCastEndpoint = moviesEndpoint.addResource("cast");
+        const deleteMovieEndpoint = movieEndpoint.addResource("delete");
 
         //Methods
         //GET movies
@@ -184,9 +183,14 @@ export class SimpleAppStack extends cdk.Stack {
         //POST movie
         moviesEndpoint.addMethod(
             "POST",
-            new apig.LambdaIntegration(newMovieFn, { proxy: true })
+            new apig.LambdaIntegration(addMovieFn, { proxy: true })
         );
-        //Get movie cast
+        //DELETE movie by Id
+        deleteMovieEndpoint.addMethod(
+            "DELETE",
+            new apig.LambdaIntegration(deleteMovieByIdFn, { proxy: true })
+        );
+        //GET movie cast
         movieCastEndpoint.addMethod(
             "GET",
             new apig.LambdaIntegration(getMovieCastMembersFn, { proxy: true })
