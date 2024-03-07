@@ -1,11 +1,7 @@
 import { APIGatewayProxyHandlerV2 } from "aws-lambda";
 import { MovieCastMemberQueryParams } from "../shared/types";
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
-import {
-  DynamoDBDocumentClient,
-  QueryCommand,
-  QueryCommandInput,
-} from "@aws-sdk/lib-dynamodb";
+import { DynamoDBDocumentClient, QueryCommand, QueryCommandInput,} from "@aws-sdk/lib-dynamodb";
 import Ajv from "ajv";
 import schema from "../shared/types.schema.json";
 
@@ -40,7 +36,7 @@ export const handler: APIGatewayProxyHandlerV2 = async (event, context) => {
       };
     }
 
-    const movieId = parseInt(queryParams.movieId);
+    const movieId = queryParams.movieId ? parseInt(queryParams.movieId) : undefined;
 
     let commandInput: QueryCommandInput = { TableName: process.env.TABLE_NAME, };
     if ("roleName" in queryParams) {
@@ -63,37 +59,36 @@ export const handler: APIGatewayProxyHandlerV2 = async (event, context) => {
         },
       };
     } else {
-      commandInput = {
-        ...commandInput,
-        KeyConditionExpression: "movieId = :m",
-        ExpressionAttributeValues: {
-          ":m": movieId,
-        },
-      };
-        }
+       commandInput = {
+          ...commandInput,
+          KeyConditionExpression: "movieId = :m",
+          ExpressionAttributeValues: {
+             ":m": movieId,
+          },
+       };
+     }
 
-    
     const commandOutput = await ddbDocClient.send(
       new QueryCommand(commandInput)
       );
       
       return {
         statusCode: 200,
-        headers: {
-          "content-type": "application/json",
-        },
-        body: JSON.stringify({
-          data: commandOutput.Items,
-        }),
+         headers: {
+           "content-type": "application/json",
+         },
+         body: JSON.stringify({
+           data: commandOutput.Items,
+         }),
       };
     } catch (error) {
       console.log(JSON.stringify(error));
       return {
-        statusCode: 500,
-        headers: {
-          "content-type": "application/json",
-        },
-        body: JSON.stringify({ error }),
+         statusCode: 500,
+         headers: {
+           "content-type": "application/json",
+         },
+         body: JSON.stringify({ error }),
       };
     }
   };

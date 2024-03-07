@@ -18,7 +18,7 @@ export const handler: APIGatewayProxyHandlerV2 = async (event, context) => {
         console.log('ScanCommand response: ', commandOutput)
 
         const body = {
-            data: commandOutput.Items, // Outpit data from Scanning command
+            data: commandOutput.Items,
         };
 
         // Return Response

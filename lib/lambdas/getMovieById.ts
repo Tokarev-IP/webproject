@@ -1,14 +1,26 @@
 import { APIGatewayProxyHandlerV2 } from "aws-lambda";
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
-import { DynamoDBDocumentClient, GetCommand } from "@aws-sdk/lib-dynamodb";
+import { DynamoDBDocumentClient, QueryCommand, QueryCommandInput, GetCommand } from "@aws-sdk/lib-dynamodb";
 
 const ddbDocClient = createDDbDocClient();
 
 export const handler: APIGatewayProxyHandlerV2 = async (event, context) => {  
     try {
         console.log("Event: ", event);
-        const parameters = event?.pathParameters;
-        const movieId = parameters?.movieId ? parseInt(parameters.movieId) : undefined;
+
+        const queryParams = event.queryStringParameters;
+
+        if (!queryParams || !queryParams.movieId) {
+            return {
+                statusCode: 400,
+                headers: {
+                    "content-type": "application/json",
+                },
+                body: JSON.stringify({ message: "Missing movie id parameters" }),
+            };
+        }
+
+        const movieId = parseInt(queryParams.movieId);
 
         if (!movieId) {
             return {
@@ -20,17 +32,38 @@ export const handler: APIGatewayProxyHandlerV2 = async (event, context) => {
             };
         }
 
-        //Get command operation
-        const commandOutput = await ddbDocClient.send(
+        const movieData = await ddbDocClient.send(
             new GetCommand({
                 TableName: process.env.TABLE_NAME,
                 Key: { id: movieId },
             })
         );
 
-        console.log('GetCommand response: ', commandOutput) 
+        let responseData: any = { movieData: movieData.Item };
 
-        if (!commandOutput.Item) {
+        const isCastRequested = queryParams?.cast === "true";
+
+        if (isCastRequested) {
+            const castMembers = await ddbDocClient.send(
+                new QueryCommand({
+                    TableName: process.env.TABLE_NAME_CAST,
+                    KeyConditionExpression: "movieId = :m",
+                    ExpressionAttributeValues: {
+                        ":m": movieId,
+                    },
+                })
+            );
+
+            return {
+                statusCode: 200,
+                headers: {
+                    "content-type": "application/json",
+                },
+                body: JSON.stringify(castMembers.Items),
+            };
+        } 
+
+        if (!movieData.Item) {
             return {
                 statusCode: 404,
                 headers: {
@@ -39,18 +72,15 @@ export const handler: APIGatewayProxyHandlerV2 = async (event, context) => {
                 body: JSON.stringify({ Message: "Invalid movie Id" }),
             };
         }
-        const body = {
-            data: commandOutput.Item,  //Output data from Get command 
-        };
 
-        // Return Response
         return {
             statusCode: 200,
             headers: {
                 "content-type": "application/json",
             },
-            body: JSON.stringify(body),
+            body: JSON.stringify(responseData),
         };
+
     } catch (error) {
         console.log(JSON.stringify(error));
         return {
@@ -62,6 +92,39 @@ export const handler: APIGatewayProxyHandlerV2 = async (event, context) => {
         };
     }
 };
+
+/*async function getMovieById(movieId: number): Promise<any> {
+    try {
+        const commandOutput = await ddbDocClient.send(
+            new GetCommand({
+                TableName: process.env.TABLE_NAME,
+                Key: { id: movieId },
+            })
+        );
+        return commandOutput.Item;
+    } catch (error) {
+        console.error("Error fetching movie by ID:", error);
+        throw error;
+    }
+}
+
+async function getCastsByMovieId(movieId: number): Promise<any> {
+    try {
+        const commandOutput = await ddbDocClient.send(
+            new QueryCommand({
+                TableName: process.env.TABLE_NAME_CAST,
+                KeyConditionExpression: "movieId = :m",
+                ExpressionAttributeValues: {
+                    ":m": movieId,
+                },
+            })
+        );
+        return commandOutput.Items;
+    } catch (error) {
+        console.error("Error fetching casts by movie ID:", error);
+        throw error;
+    }
+}*/
 
 function createDDbDocClient() {
     const ddbClient = new DynamoDBClient({ region: process.env.REGION });
