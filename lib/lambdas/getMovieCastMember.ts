@@ -43,7 +43,7 @@ export const handler: APIGatewayProxyHandlerV2 = async (event, context) => {
       commandInput = {
         ...commandInput,
         IndexName: "roleIx",
-        KeyConditionExpression: "movieId = :m and begins_with(roleName, :r) ",
+        KeyConditionExpression: "movieId = :m and begins_with(roleName, :r)",
         ExpressionAttributeValues: {
           ":m": movieId,
           ":r": queryParams.roleName,
@@ -52,7 +52,7 @@ export const handler: APIGatewayProxyHandlerV2 = async (event, context) => {
     } else if ("actorName" in queryParams) {
       commandInput = {
         ...commandInput,
-        KeyConditionExpression: "movieId = :m and begins_with(actorName, :a) ",
+        KeyConditionExpression: "movieId = :m and begins_with(actorName, :a)",
         ExpressionAttributeValues: {
           ":m": movieId,
           ":a": queryParams.actorName,

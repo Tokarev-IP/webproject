@@ -81,7 +81,7 @@ export const movieCasts: MovieCast[] = [
 export const moviewReviews: MovieReview[] = [
     {
         movieId: 1234,
-        reviewerName: "Kevin Hilkins",
+        reviewerName: "KevinHilkins",
         reviewDate: "2023-12-20",
         content: "a good film with a lot of fun",
         rating: 5,

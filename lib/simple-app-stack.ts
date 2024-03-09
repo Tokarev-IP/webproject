@@ -43,8 +43,8 @@ export class SimpleAppStack extends cdk.Stack {
         });
         movieReviewsTable.addGlobalSecondaryIndex({
             indexName: 'reviewerNameIx',
-            partitionKey: { name: 'reviewerName', type: dynamodb.AttributeType.STRING },
-            sortKey: { name: 'movieId', type: dynamodb.AttributeType.NUMBER },
+            partitionKey: { name: 'movieId', type: dynamodb.AttributeType.NUMBER },
+            sortKey: { name: 'reviewerName', type: dynamodb.AttributeType.STRING },
         });
 
         //Add an AWSCustomResource
@@ -151,6 +151,19 @@ export class SimpleAppStack extends cdk.Stack {
             },
         });
 
+        //GET Movie Review by Reviewer Name lambda function
+        const getMovieReviewByReviewerNameFn = new lambdanode.NodejsFunction(this, "Get Moview Review by Reviewer Name Fn", {
+            architecture: lambda.Architecture.ARM_64,
+            runtime: lambda.Runtime.NODEJS_16_X,
+            entry: `${__dirname}/lambdas/getMovieReviewByReviewerName.ts`,
+            timeout: cdk.Duration.seconds(10),
+            memorySize: 128,
+            environment: {
+                TABLE_NAME: movieReviewsTable.tableName,
+                REGION: "us-east-1",
+            },
+        });
+
         //permissions
         moviesTable.grantReadData(getMovieByIdFn);
         moviesTable.grantReadData(getAllMoviesFn);
@@ -159,6 +172,7 @@ export class SimpleAppStack extends cdk.Stack {
         movieCastsTable.grantReadData(getMovieCastMembersFn);
         movieCastsTable.grantReadData(getMovieByIdFn);
         movieReviewsTable.grantReadData(getAllMovieReviewsFn);
+        movieReviewsTable.grantReadData(getMovieReviewByReviewerNameFn)
 
         // REST API 
         const api = new apig.RestApi(this, "RestAPI", {
@@ -180,6 +194,7 @@ export class SimpleAppStack extends cdk.Stack {
         const movieCastEndpoint = moviesEndpoint.addResource("cast");
         const deleteMovieEndpoint = movieEndpoint.addResource("delete");
         const movieReviewsEndpoint = movieEndpoint.addResource("reviews");
+        const movieReviewByReviewerNameEndpoint = movieReviewsEndpoint.addResource("{reviewerName}");
 
         //Methods
         //GET all movies
@@ -211,6 +226,11 @@ export class SimpleAppStack extends cdk.Stack {
         movieReviewsEndpoint.addMethod(
             "GET",
             new apig.LambdaIntegration(getAllMovieReviewsFn, { proxy: true })
+        )
+        //GET movie review by reviewer name
+        movieReviewByReviewerNameEndpoint.addMethod(
+            "GET",
+            new apig.LambdaIntegration(getMovieReviewByReviewerNameFn, { proxy: true })
         )
     }
 }
