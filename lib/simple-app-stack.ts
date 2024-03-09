@@ -42,7 +42,7 @@ export class SimpleAppStack extends cdk.Stack {
             tableName: "MovieReview",
         });
         movieReviewsTable.addGlobalSecondaryIndex({
-            indexName: 'MovieIdReviewerNameIndex',
+            indexName: 'reviewerNameIx',
             partitionKey: { name: 'reviewerName', type: dynamodb.AttributeType.STRING },
             sortKey: { name: 'movieId', type: dynamodb.AttributeType.NUMBER },
         });
@@ -81,13 +81,6 @@ export class SimpleAppStack extends cdk.Stack {
                 },
             }
         );
-        const getMovieByIdURL = getMovieByIdFn.addFunctionUrl({
-            authType: lambda.FunctionUrlAuthType.NONE,
-            cors: {
-                allowedOrigins: ["*"],
-            },
-        });
-        new cdk.CfnOutput(this, "Get Movie Function Url", { value: getMovieByIdURL.url });
 
         //Get All Movies lambda function
         const getAllMoviesFn = new lambdanode.NodejsFunction(this, "GetAllMoviesFn",

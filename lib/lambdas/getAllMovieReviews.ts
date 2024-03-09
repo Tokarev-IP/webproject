@@ -9,6 +9,7 @@ export const handler: APIGatewayProxyHandlerV2 = async (event, context) => {
         console.log("Event: ", event);
 
         const pathParameters = event.pathParameters;
+        const queryParams = event.queryStringParameters;
 
         if (!pathParameters || !pathParameters.movieId) {
             return {
@@ -22,32 +23,49 @@ export const handler: APIGatewayProxyHandlerV2 = async (event, context) => {
 
         const movieId = parseInt(pathParameters.movieId);
 
-        const movieReviews = await ddbDocClient.send(
-            new QueryCommand({
-                TableName: process.env.TABLE_NAME,
+        let commandInput: QueryCommandInput = { TableName: process.env.TABLE_NAME, };
+        if (queryParams && "minRating" in queryParams) {
+            const minRating = queryParams.minRating ? parseInt(queryParams.minRating) : undefined;
+
+            if (!minRating) {
+                return {
+                    statusCode: 400,
+                    headers: {
+                        "content-type": "application/json",
+                    },
+                    body: JSON.stringify({ message: "Incorrect Minimum Rating parameter" }),
+                };
+            }
+
+            commandInput = {
+                ...commandInput,
+                KeyConditionExpression: "movieId = :m",
+                FilterExpression: "rating > :r",
+                ExpressionAttributeValues: {
+                    ":m": movieId,
+                    ":r": minRating,
+                },
+            };
+        } else {
+            commandInput = {
+                ...commandInput,
                 KeyConditionExpression: "movieId = :m",
                 ExpressionAttributeValues: {
                     ":m": movieId,
                 },
-            })
-        );
-
-        if (!movieReviews.Items) {
-            return {
-                statusCode: 404,
-                headers: {
-                    "content-type": "application/json",
-                },
-                body: JSON.stringify({ message: "Reviews not found" }),
             };
         }
+
+        const commandOutput = await ddbDocClient.send(
+            new QueryCommand(commandInput)
+        );
 
         return {
             statusCode: 200,
             headers: {
                 "content-type": "application/json",
             },
-            body: JSON.stringify(movieReviews.Items),
+            body: JSON.stringify(commandOutput.Items),
         };
 
     } catch (error) {
