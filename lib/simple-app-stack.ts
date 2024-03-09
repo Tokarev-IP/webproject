@@ -21,7 +21,7 @@ export class SimpleAppStack extends cdk.Stack {
         });
 
         //Add a MovieCast table declaration
-        const movieCastsTable = new dynamodb.Table(this, "MovieCastTable", {
+        const movieCastsTable = new dynamodb.Table(this, "MovieCastsTable", {
             billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
             partitionKey: { name: "movieId", type: dynamodb.AttributeType.NUMBER },
             sortKey: { name: "actorName", type: dynamodb.AttributeType.STRING },
@@ -41,10 +41,11 @@ export class SimpleAppStack extends cdk.Stack {
             removalPolicy: cdk.RemovalPolicy.DESTROY,
             tableName: "MovieReview",
         });
-        movieReviewsTable.addLocalSecondaryIndex({
-            indexName: "reviewerIx",
-            sortKey: { name: "reviewerName", type: dynamodb.AttributeType.STRING },
-        })
+        movieReviewsTable.addGlobalSecondaryIndex({
+            indexName: 'MovieIdReviewerNameIndex',
+            partitionKey: { name: 'reviewerName', type: dynamodb.AttributeType.STRING },
+            sortKey: { name: 'movieId', type: dynamodb.AttributeType.NUMBER },
+        });
 
         //Add an AWSCustomResource
         new custom.AwsCustomResource(this, "moviesddbInitData", {
@@ -89,7 +90,7 @@ export class SimpleAppStack extends cdk.Stack {
         new cdk.CfnOutput(this, "Get Movie Function Url", { value: getMovieByIdURL.url });
 
         //Get All Movies lambda function
-        const getAllMoviesFn = new lambdanode.NodejsFunction(this, "getAllMoviesFn",
+        const getAllMoviesFn = new lambdanode.NodejsFunction(this, "GetAllMoviesFn",
             {
                 architecture: lambda.Architecture.ARM_64,
                 runtime: lambda.Runtime.NODEJS_16_X,
@@ -144,13 +145,27 @@ export class SimpleAppStack extends cdk.Stack {
             },
         });
 
+        //Get All Reviews of Movie lambda function
+        const getAllMovieReviewsFn = new lambdanode.NodejsFunction(this, "Get All Reviews of Movie Fn", {
+            architecture: lambda.Architecture.ARM_64,
+            runtime: lambda.Runtime.NODEJS_16_X,
+            entry: `${__dirname}/lambdas/getAllMovieReviews.ts`,
+            timeout: cdk.Duration.seconds(10),
+            memorySize: 128,
+            environment: {
+                TABLE_NAME: movieReviewsTable.tableName,
+                REGION: "us-east-1",
+            },
+        });
+
         //permissions
-        moviesTable.grantReadData(getMovieByIdFn)
-        moviesTable.grantReadData(getAllMoviesFn)
-        moviesTable.grantReadWriteData(addMovieFn)
-        moviesTable.grantReadWriteData(deleteMovieByIdFn)
+        moviesTable.grantReadData(getMovieByIdFn);
+        moviesTable.grantReadData(getAllMoviesFn);
+        moviesTable.grantReadWriteData(addMovieFn);
+        moviesTable.grantReadWriteData(deleteMovieByIdFn);
         movieCastsTable.grantReadData(getMovieCastMembersFn);
-        movieCastsTable.grantReadData(getMovieByIdFn)
+        movieCastsTable.grantReadData(getMovieByIdFn);
+        movieReviewsTable.grantReadData(getAllMovieReviewsFn);
 
         // REST API 
         const api = new apig.RestApi(this, "RestAPI", {
@@ -171,6 +186,7 @@ export class SimpleAppStack extends cdk.Stack {
         const movieEndpoint = moviesEndpoint.addResource("{movieId}");
         const movieCastEndpoint = moviesEndpoint.addResource("cast");
         const deleteMovieEndpoint = movieEndpoint.addResource("delete");
+        const movieReviewsEndpoint = movieEndpoint.addResource("reviews");
 
         //Methods
         //GET all movies
@@ -198,5 +214,10 @@ export class SimpleAppStack extends cdk.Stack {
             "GET",
             new apig.LambdaIntegration(getMovieCastMembersFn, { proxy: true })
         );
+        //GET moview reviews
+        movieReviewsEndpoint.addMethod(
+            "GET",
+            new apig.LambdaIntegration(getAllMovieReviewsFn, { proxy: true })
+        )
     }
 }

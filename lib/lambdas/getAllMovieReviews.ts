@@ -4,7 +4,7 @@ import { DynamoDBDocumentClient, QueryCommand, QueryCommandInput, GetCommand } f
 
 const ddbDocClient = createDDbDocClient();
 
-export const handler: APIGatewayProxyHandlerV2 = async (event, context) => {  
+export const handler: APIGatewayProxyHandlerV2 = async (event, context) => {
     try {
         console.log("Event: ", event);
 
@@ -22,48 +22,32 @@ export const handler: APIGatewayProxyHandlerV2 = async (event, context) => {
 
         const movieId = parseInt(pathParameters.movieId);
 
-        const movieData = await ddbDocClient.send(
-            new GetCommand({
+        const movieReviews = await ddbDocClient.send(
+            new QueryCommand({
                 TableName: process.env.TABLE_NAME,
-                Key: { id: movieId },
+                KeyConditionExpression: "movieId = :m",
+                ExpressionAttributeValues: {
+                    ":m": movieId,
+                },
             })
         );
 
-        if (!movieData.Item) {
+        if (!movieReviews.Items) {
             return {
                 statusCode: 404,
                 headers: {
                     "content-type": "application/json",
                 },
-                body: JSON.stringify({ message: "Movie not found" }),
+                body: JSON.stringify({ message: "Reviews not found" }),
             };
         }
-
-        let responseData: any = { movieData: movieData.Item };
-
-        const isCastRequested = event.queryStringParameters?.cast === "true";
-
-        if (isCastRequested) {
-            const castMembers = await ddbDocClient.send(
-                new QueryCommand({
-                    TableName: process.env.TABLE_NAME_CAST,
-                    KeyConditionExpression: "movieId = :m",
-                    ExpressionAttributeValues: {
-                        ":m": movieId,
-                    },
-                })
-            );
-
-            responseData.castMembers = castMembers.Items;
-
-        } 
 
         return {
             statusCode: 200,
             headers: {
                 "content-type": "application/json",
             },
-            body: JSON.stringify(responseData),
+            body: JSON.stringify(movieReviews.Items),
         };
 
     } catch (error) {
