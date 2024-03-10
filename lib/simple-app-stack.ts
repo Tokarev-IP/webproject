@@ -177,6 +177,19 @@ export class SimpleAppStack extends cdk.Stack {
             },
         });
 
+        //Post Review of a movie
+        const addReviewFn = new lambdanode.NodejsFunction(this, "Post review of a movie", {
+            architecture: lambda.Architecture.ARM_64,
+            runtime: lambda.Runtime.NODEJS_16_X,
+            entry: `${__dirname}/lambdas/addReview.ts`,
+            timeout: cdk.Duration.seconds(10),
+            memorySize: 128,
+            environment: {
+                TABLE_NAME: movieReviewsTable.tableName,
+                REGION: "us-east-1",
+            },
+        });
+
         //permissions
         moviesTable.grantReadData(getMovieByIdFn);
         moviesTable.grantReadData(getAllMoviesFn);
@@ -187,6 +200,7 @@ export class SimpleAppStack extends cdk.Stack {
         movieReviewsTable.grantReadData(getAllMovieReviewsFn);
         movieReviewsTable.grantReadData(getMovieReviewByReviewerNameFn)
         movieReviewsTable.grantReadData(getAllReviewsByReviewerNameFn)
+        movieReviewsTable.grantReadWriteData(addReviewFn)
 
         // REST API 
         const api = new apig.RestApi(this, "RestAPI", {
@@ -252,6 +266,11 @@ export class SimpleAppStack extends cdk.Stack {
         reviewsReviewerEndpoint.addMethod(
             "GET",
             new apig.LambdaIntegration(getAllReviewsByReviewerNameFn, { proxy: true })
+        )
+        //POST review
+        reviewsEndpoint.addMethod(
+            "POST",
+            new apig.LambdaIntegration(addReviewFn, { proxy: true })
         )
     }
 }
