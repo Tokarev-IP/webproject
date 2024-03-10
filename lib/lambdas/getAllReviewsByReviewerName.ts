@@ -10,25 +10,23 @@ export const handler: APIGatewayProxyHandlerV2 = async (event, context) => {
 
         const pathParameters = event.pathParameters;
 
-        if (!pathParameters || !pathParameters.movieId || !pathParameters.reviewerName) {
+        if (!pathParameters || !pathParameters.reviewerName) {
             return {
                 statusCode: 400,
                 headers: {
                     "content-type": "application/json",
                 },
-                body: JSON.stringify({ message: "Missing any parameters" }),
+                body: JSON.stringify({ message: "Missing Reviewer Name parameters" }),
             };
         }
 
-        const movieId = parseInt(pathParameters.movieId);
         const reviewerName = pathParameters.reviewerName;
 
         let commandInput: QueryCommandInput = {
             TableName: process.env.TABLE_NAME,
             IndexName: 'reviewerNameIx',
-            KeyConditionExpression: "movieId = :m and reviewerName = :rn",
+            KeyConditionExpression: "reviewerName = :rn",
             ExpressionAttributeValues: {
-                ":m": movieId,
                 ":rn": reviewerName,
             },
         };
