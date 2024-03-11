@@ -37,6 +37,25 @@ export class SimpleAppStack extends cdk.Stack {
         const movieReviewsTable = new dynamodb.Table(this, "MovieReviewsTable", {
             billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
             partitionKey: { name: "movieId", type: dynamodb.AttributeType.NUMBER },
+            sortKey: { name: "reviewerName", type: dynamodb.AttributeType.STRING },
+            removalPolicy: cdk.RemovalPolicy.DESTROY,
+            tableName: "MovieReview",
+        });
+        movieReviewsTable.addGlobalSecondaryIndex({
+            indexName: 'reviewDateIx',
+            partitionKey: { name: 'reviewDate', type: dynamodb.AttributeType.STRING },
+            sortKey: { name: "movieId", type: dynamodb.AttributeType.NUMBER },
+        });
+        movieReviewsTable.addGlobalSecondaryIndex({
+            indexName: 'reviewerNameIx',
+            partitionKey: { name: "reviewerName", type: dynamodb.AttributeType.STRING },
+            sortKey: { name: "movieId", type: dynamodb.AttributeType.NUMBER },
+        });
+
+        //Add a MoviewReview table declaration
+        /*const movieReviewsTable = new dynamodb.Table(this, "MovieReviewsTable", {
+            billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+            partitionKey: { name: "movieId", type: dynamodb.AttributeType.NUMBER },
             sortKey: { name: "reviewDate", type: dynamodb.AttributeType.STRING },
             removalPolicy: cdk.RemovalPolicy.DESTROY,
             tableName: "MovieReview",
@@ -45,7 +64,7 @@ export class SimpleAppStack extends cdk.Stack {
             indexName: 'reviewerNameIx',
             partitionKey: { name: 'reviewerName', type: dynamodb.AttributeType.STRING },
             sortKey: { name: "movieId", type: dynamodb.AttributeType.NUMBER },
-        });
+        });*/
 
         //Add an AWSCustomResource
         new custom.AwsCustomResource(this, "moviesddbInitData", {
@@ -151,7 +170,7 @@ export class SimpleAppStack extends cdk.Stack {
             },
         });
 
-        //GET Movie Review by Reviewer Name lambda function
+        //Get Movie Review by Reviewer Name lambda function
         const getMovieReviewByReviewerNameFn = new lambdanode.NodejsFunction(this, "Get Moview Review by Reviewer Name Fn", {
             architecture: lambda.Architecture.ARM_64,
             runtime: lambda.Runtime.NODEJS_16_X,
@@ -164,7 +183,7 @@ export class SimpleAppStack extends cdk.Stack {
             },
         });
 
-        //GET All Reviews by Reviewer Name lambda function
+        //Get All Reviews by Reviewer Name lambda function
         const getAllReviewsByReviewerNameFn = new lambdanode.NodejsFunction(this, "Get All Reviews by Reviewer Name Fn", {
             architecture: lambda.Architecture.ARM_64,
             runtime: lambda.Runtime.NODEJS_16_X,
@@ -177,11 +196,24 @@ export class SimpleAppStack extends cdk.Stack {
             },
         });
 
-        //Post Review of a movie
+        //Post Review of a movie lambda function
         const addReviewFn = new lambdanode.NodejsFunction(this, "Post review of a movie", {
             architecture: lambda.Architecture.ARM_64,
             runtime: lambda.Runtime.NODEJS_16_X,
             entry: `${__dirname}/lambdas/addReview.ts`,
+            timeout: cdk.Duration.seconds(10),
+            memorySize: 128,
+            environment: {
+                TABLE_NAME: movieReviewsTable.tableName,
+                REGION: "us-east-1",
+            },
+        });
+
+        //Put the review text by reviewerName lambda function
+        const updateReviewContentFn = new lambdanode.NodejsFunction(this, "Update text of review by reviewerName", {
+            architecture: lambda.Architecture.ARM_64,
+            runtime: lambda.Runtime.NODEJS_16_X,
+            entry: `${__dirname}/lambdas/putReviewContent.ts`,
             timeout: cdk.Duration.seconds(10),
             memorySize: 128,
             environment: {
@@ -201,6 +233,7 @@ export class SimpleAppStack extends cdk.Stack {
         movieReviewsTable.grantReadData(getMovieReviewByReviewerNameFn)
         movieReviewsTable.grantReadData(getAllReviewsByReviewerNameFn)
         movieReviewsTable.grantReadWriteData(addReviewFn)
+        movieReviewsTable.grantReadWriteData(updateReviewContentFn)
 
         // REST API 
         const api = new apig.RestApi(this, "RestAPI", {
@@ -271,6 +304,11 @@ export class SimpleAppStack extends cdk.Stack {
         reviewsEndpoint.addMethod(
             "POST",
             new apig.LambdaIntegration(addReviewFn, { proxy: true })
+        )
+        //PUT review content
+        movieReviewByReviewerNameEndpoint.addMethod(
+            "PUT",
+            new apig.LambdaIntegration(updateReviewContentFn, { proxy: true })
         )
     }
 }

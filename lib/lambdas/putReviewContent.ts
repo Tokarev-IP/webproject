@@ -1,38 +1,69 @@
 import { APIGatewayProxyHandlerV2 } from "aws-lambda";
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
-import { DynamoDBDocumentClient, QueryCommand, QueryCommandInput, GetCommand } from "@aws-sdk/lib-dynamodb";
+import { DynamoDBDocumentClient, UpdateCommand } from "@aws-sdk/lib-dynamodb";
+import Ajv from 'ajv';
+import schema from '../shared/types.schema.json';
+
+const ajv = new Ajv();
+const isValidBodyParams = ajv.compile(schema.definitions["PutReviewContent"] || {});
 
 const ddbDocClient = createDDbDocClient();
 
 export const handler: APIGatewayProxyHandlerV2 = async (event, context) => {
     try {
         console.log("Event: ", event);
+        const body = event.body ? JSON.parse(event.body) : undefined;
+        if (!body) {
+            return {
+                statusCode: 500,
+                headers: {
+                    "content-type": "application/json",
+                },
+                body: JSON.stringify({ message: "Missing request body" }),
+            };
+        }
+        if (!isValidBodyParams(body)) {
+            return {
+                statusCode: 500,
+                headers: {
+                    "content-type": "application/json",
+                },
+                body: JSON.stringify({
+                    message: `Incorrect type. Must match content schema`,
+                    schema: schema.definitions["PutReviewContent"],
+                }),
+            };
+        }
 
         const pathParameters = event.pathParameters;
 
-        if (!pathParameters || !pathParameters.reviewerName) {
+        if (!pathParameters || !pathParameters.movieId || !pathParameters.reviewerName) {
             return {
                 statusCode: 400,
                 headers: {
                     "content-type": "application/json",
                 },
-                body: JSON.stringify({ message: "Missing Reviewer Name parameters" }),
+                body: JSON.stringify({ message: "Missing any parameters" }),
             };
         }
 
+        const movieId = parseInt(pathParameters.movieId);
         const reviewerName = pathParameters.reviewerName;
 
-        let commandInput: QueryCommandInput = {
+        let commandInput = {
             TableName: process.env.TABLE_NAME,
-            IndexName: "reviewerNameIx",
-            KeyConditionExpression: "reviewerName = :rn",
+            Key: {
+                "movieId": movieId,
+                "reviewerName": reviewerName,
+            },
+            UpdateExpression: "SET content = :c",
             ExpressionAttributeValues: {
-                ":rn": reviewerName,
+                ":c": body.content
             },
         };
 
         const commandOutput = await ddbDocClient.send(
-            new QueryCommand(commandInput)
+            new UpdateCommand(commandInput)
         );
 
         return {
@@ -40,7 +71,7 @@ export const handler: APIGatewayProxyHandlerV2 = async (event, context) => {
             headers: {
                 "content-type": "application/json",
             },
-            body: JSON.stringify(commandOutput.Items),
+            body: JSON.stringify(commandOutput),
         };
 
     } catch (error) {

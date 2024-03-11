@@ -137,6 +137,18 @@
                 "rating"
             ],
             "type": "object"
+        },
+        "PutReviewContent": {
+            "additionalProperties": false,
+            "properties": {
+                "content": {
+                    "type": "string"
+                }
+            },
+            "required": [
+                "content"
+            ],
+            "type": "object"
         }
     }
 }

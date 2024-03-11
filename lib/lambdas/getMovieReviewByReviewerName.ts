@@ -25,7 +25,6 @@ export const handler: APIGatewayProxyHandlerV2 = async (event, context) => {
 
         let commandInput: QueryCommandInput = {
             TableName: process.env.TABLE_NAME,
-            IndexName: 'reviewerNameIx',
             KeyConditionExpression: "movieId = :m and reviewerName = :rn",
             ExpressionAttributeValues: {
                 ":m": movieId,
@@ -36,6 +35,16 @@ export const handler: APIGatewayProxyHandlerV2 = async (event, context) => {
         const commandOutput = await ddbDocClient.send(
             new QueryCommand(commandInput)
         );
+
+        if (commandOutput.Items?.length == 0) {
+            return {
+                statusCode: 404,
+                headers: {
+                    "content-type": "application/json",
+                },
+                body: JSON.stringify({ message: "Empty result" }),
+            };
+        }
 
         return {
             statusCode: 200,
