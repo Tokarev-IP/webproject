@@ -42,29 +42,15 @@ export class SimpleAppStack extends cdk.Stack {
             tableName: "MovieReview",
         });
         movieReviewsTable.addGlobalSecondaryIndex({
-            indexName: 'reviewDateIx',
-            partitionKey: { name: 'reviewDate', type: dynamodb.AttributeType.STRING },
+            indexName: "reviewDateIx",
+            partitionKey: { name: "reviewDate", type: dynamodb.AttributeType.STRING },
             sortKey: { name: "movieId", type: dynamodb.AttributeType.NUMBER },
         });
         movieReviewsTable.addGlobalSecondaryIndex({
-            indexName: 'reviewerNameIx',
+            indexName: "reviewerNameIx",
             partitionKey: { name: "reviewerName", type: dynamodb.AttributeType.STRING },
             sortKey: { name: "movieId", type: dynamodb.AttributeType.NUMBER },
         });
-
-        //Add a MoviewReview table declaration
-        /*const movieReviewsTable = new dynamodb.Table(this, "MovieReviewsTable", {
-            billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
-            partitionKey: { name: "movieId", type: dynamodb.AttributeType.NUMBER },
-            sortKey: { name: "reviewDate", type: dynamodb.AttributeType.STRING },
-            removalPolicy: cdk.RemovalPolicy.DESTROY,
-            tableName: "MovieReview",
-        });
-        movieReviewsTable.addGlobalSecondaryIndex({
-            indexName: 'reviewerNameIx',
-            partitionKey: { name: 'reviewerName', type: dynamodb.AttributeType.STRING },
-            sortKey: { name: "movieId", type: dynamodb.AttributeType.NUMBER },
-        });*/
 
         //Add an AWSCustomResource
         new custom.AwsCustomResource(this, "moviesddbInitData", {
@@ -96,7 +82,7 @@ export class SimpleAppStack extends cdk.Stack {
                 environment: {
                     TABLE_NAME: moviesTable.tableName,
                     TABLE_NAME_CAST: movieCastsTable.tableName,
-                    REGION: 'us-east-1',
+                    REGION: "us-east-1",
                 },
             }
         );
@@ -111,7 +97,7 @@ export class SimpleAppStack extends cdk.Stack {
                 memorySize: 128,
                 environment: {
                     TABLE_NAME: moviesTable.tableName,
-                    REGION: 'us-east-1',
+                    REGION: "us-east-1",
                 },
             }
         );
@@ -222,6 +208,32 @@ export class SimpleAppStack extends cdk.Stack {
             },
         });
 
+        //Get All Reviews by Year lambda function
+        const getAllReviewsByYearFn = new lambdanode.NodejsFunction(this, "Get All Reviews by Year Fn", {
+            architecture: lambda.Architecture.ARM_64,
+            runtime: lambda.Runtime.NODEJS_16_X,
+            entry: `${__dirname}/lambdas/getAllReviewsByYear.ts`,
+            timeout: cdk.Duration.seconds(10),
+            memorySize: 128,
+            environment: {
+                TABLE_NAME: movieReviewsTable.tableName,
+                REGION: "us-east-1",
+            },
+        });
+
+        //Delete review by Id and Reviewer Name
+        const deleteReviewFn = new lambdanode.NodejsFunction(this, "Delete review Fn", {
+            architecture: lambda.Architecture.ARM_64,
+            runtime: lambda.Runtime.NODEJS_16_X,
+            entry: `${__dirname}/lambdas/deleteReview.ts`,
+            timeout: cdk.Duration.seconds(10),
+            memorySize: 128,
+            environment: {
+                TABLE_NAME: movieReviewsTable.tableName,
+                REGION: "us-east-1",
+            },
+        });
+
         //permissions
         moviesTable.grantReadData(getMovieByIdFn);
         moviesTable.grantReadData(getAllMoviesFn);
@@ -234,6 +246,8 @@ export class SimpleAppStack extends cdk.Stack {
         movieReviewsTable.grantReadData(getAllReviewsByReviewerNameFn)
         movieReviewsTable.grantReadWriteData(addReviewFn)
         movieReviewsTable.grantReadWriteData(updateReviewContentFn)
+        movieReviewsTable.grantReadData(getAllReviewsByYearFn)
+        movieReviewsTable.grantReadWriteData(deleteReviewFn)
 
         // REST API 
         const api = new apig.RestApi(this, "RestAPI", {
@@ -258,6 +272,8 @@ export class SimpleAppStack extends cdk.Stack {
         const movieReviewsEndpoint = movieEndpoint.addResource("reviews");
         const movieReviewByReviewerNameEndpoint = movieReviewsEndpoint.addResource("{reviewerName}");
         const reviewsReviewerEndpoint = reviewsEndpoint.addResource("{reviewerName}");
+        const reviewByYearEndpoint = movieReviewsEndpoint.addResource("{year}");
+        const deleteReviewEndpoint = movieReviewByReviewerNameEndpoint.addResource("delete")
 
         //Methods
         //GET all movies
@@ -310,5 +326,15 @@ export class SimpleAppStack extends cdk.Stack {
             "PUT",
             new apig.LambdaIntegration(updateReviewContentFn, { proxy: true })
         )
+        //GET all reviews by Year
+        reviewByYearEndpoint.addMethod(
+            "GET",
+            new apig.LambdaIntegration(getAllReviewsByYearFn, { proxy: true })
+        )
+        //DELETE review
+        deleteReviewEndpoint.addMethod(
+            "DELETE",
+            new apig.LambdaIntegration(deleteReviewFn, { proxy: true })
+        );
     }
 }

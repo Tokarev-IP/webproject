@@ -1,6 +1,6 @@
 import { APIGatewayProxyHandlerV2 } from "aws-lambda";
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
-import { DynamoDBDocumentClient, QueryCommand, QueryCommandInput} from "@aws-sdk/lib-dynamodb";
+import { DynamoDBDocumentClient, QueryCommand, QueryCommandInput } from "@aws-sdk/lib-dynamodb";
 
 const ddbDocClient = createDDbDocClient();
 
@@ -9,8 +9,9 @@ export const handler: APIGatewayProxyHandlerV2 = async (event, context) => {
         console.log("Event: ", event);
 
         const pathParameters = event.pathParameters;
+        const queryParams = event.queryStringParameters;
 
-        if (!pathParameters || !pathParameters.movieId || !pathParameters.reviewerName) {
+        if (!pathParameters || !pathParameters.movieId || !pathParameters.year) {
             return {
                 statusCode: 400,
                 headers: {
@@ -21,14 +22,14 @@ export const handler: APIGatewayProxyHandlerV2 = async (event, context) => {
         }
 
         const movieId = parseInt(pathParameters.movieId);
-        const reviewerName = pathParameters.reviewerName;
+        const year = pathParameters.year;
 
         let commandInput: QueryCommandInput = {
             TableName: process.env.TABLE_NAME,
-            KeyConditionExpression: "movieId = :m and reviewerName = :rn",
+            IndexName: "reviewDateIx",
+            KeyConditionExpression: "movieId = :m",
             ExpressionAttributeValues: {
                 ":m": movieId,
-                ":rn": reviewerName,
             },
         };
 
@@ -43,15 +44,29 @@ export const handler: APIGatewayProxyHandlerV2 = async (event, context) => {
                     "content-type": "application/json",
                 },
                 body: JSON.stringify({ message: "Empty result" }),
-            };
-        }
+            }
+        };
+
+        const result = commandOutput.Items?.filter((data: any) => {
+            data.reviewDate.split("-")[0] == year
+        })
+
+        if (result?.length == 0) {
+            return {
+                statusCode: 404,
+                headers: {
+                    "content-type": "application/json",
+                },
+                body: JSON.stringify({ message: "Empty result" }),
+            }
+        };
 
         return {
             statusCode: 200,
             headers: {
                 "content-type": "application/json",
             },
-            body: JSON.stringify(commandOutput.Items),
+            body: JSON.stringify(result),
         };
 
     } catch (error) {
@@ -63,7 +78,7 @@ export const handler: APIGatewayProxyHandlerV2 = async (event, context) => {
             },
             body: JSON.stringify({ error }),
         };
-    }
+    };
 };
 
 function createDDbDocClient() {
