@@ -24,6 +24,7 @@ export const handler: APIGatewayProxyHandlerV2 = async (event, context) => {
         const movieId = parseInt(pathParameters.movieId);
 
         let commandInput: QueryCommandInput = { TableName: process.env.TABLE_NAME, };
+
         if (queryParams && "minRating" in queryParams) {
             const minRating = queryParams.minRating ? parseInt(queryParams.minRating) : undefined;
 
@@ -46,7 +47,65 @@ export const handler: APIGatewayProxyHandlerV2 = async (event, context) => {
                     ":r": minRating,
                 },
             };
-        } else {
+        } else if (queryParams && "year" in queryParams) {
+
+            const year = queryParams.year;
+
+            if (!year) {
+                return {
+                    statusCode: 400,
+                    headers: {
+                        "content-type": "application/json",
+                    },
+                    body: JSON.stringify({ message: "Incorrect Year parameter" }),
+               };
+            }
+
+            let commandInput: QueryCommandInput = {
+                TableName: process.env.TABLE_NAME,
+                KeyConditionExpression: "movieId = :m",
+                ExpressionAttributeValues: {
+                    ":m": movieId,
+                },
+            };
+
+            const commandOutput = await ddbDocClient.send(
+                new QueryCommand(commandInput)
+            );
+
+            if (commandOutput.Items?.length == 0) {
+                return {
+                    statusCode: 404,
+                    headers: {
+                        "content-type": "application/json",
+                    },
+                    body: JSON.stringify({ message: "Empty result" }),
+                }
+            };
+
+            const result = commandOutput.Items?.filter((data: any) => {
+                data.reviewDate.startsWith(year)
+            })
+
+            if (result?.length == 0) {
+                return {
+                    statusCode: 404,
+                    headers: {
+                        "content-type": "application/json",
+                    },
+                    body: JSON.stringify({ message: "Empty result" }),
+                }
+            };
+
+            return {
+                statusCode: 200,
+                headers: {
+                    "content-type": "application/json",
+                },
+                body: JSON.stringify(result),
+            };
+        }
+        else {
             commandInput = {
                 ...commandInput,
                 KeyConditionExpression: "movieId = :m",

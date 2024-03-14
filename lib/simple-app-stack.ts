@@ -14,6 +14,10 @@ import * as iam from "aws-cdk-lib/aws-iam";
 import * as node from "aws-cdk-lib/aws-lambda-nodejs";
 
 export class SimpleAppStack extends cdk.Stack {
+    private auth: apig.IResource;
+    private userPoolId: string;
+    private userPoolClientId: string;
+
     constructor(scope: Construct, id: string, props?: cdk.StackProps) {
         super(scope, id, props);
 
@@ -77,7 +81,7 @@ export class SimpleAppStack extends cdk.Stack {
         });
 
         //Get Movie by Id lambda function
-        const getMovieByIdFn = new lambdanode.NodejsFunction( this,"GetMovieByIdFn",
+        const getMovieByIdFn = new lambdanode.NodejsFunction(this, "GetMovieByIdFn",
             {
                 architecture: lambda.Architecture.ARM_64,
                 runtime: lambda.Runtime.NODEJS_16_X,
@@ -108,7 +112,7 @@ export class SimpleAppStack extends cdk.Stack {
         );
 
         //Get MovieCast lambda function
-        const getMovieCastMembersFn = new lambdanode.NodejsFunction( this, "GetCastMemberFn",
+        const getMovieCastMembersFn = new lambdanode.NodejsFunction(this, "GetCastMemberFn",
             {
                 architecture: lambda.Architecture.ARM_64,
                 runtime: lambda.Runtime.NODEJS_16_X,
@@ -226,7 +230,7 @@ export class SimpleAppStack extends cdk.Stack {
             },
         });
 
-        //Delete review by Id and Reviewer Name
+        //Delete review by Id and Reviewer Name lambda function
         const deleteReviewFn = new lambdanode.NodejsFunction(this, "Delete review Fn", {
             architecture: lambda.Architecture.ARM_64,
             runtime: lambda.Runtime.NODEJS_16_X,
@@ -238,6 +242,39 @@ export class SimpleAppStack extends cdk.Stack {
                 REGION: "us-east-1",
             },
         });
+
+        //Register
+        const userPool = new UserPool(this, "UserPool", {
+            signInAliases: { username: true, email: true },
+            selfSignUpEnabled: true,
+            removalPolicy: cdk.RemovalPolicy.DESTROY,
+        });
+        this.userPoolId = userPool.userPoolId;
+        const appClient = userPool.addClient("AppClient", {
+            authFlows: { userPassword: true },
+        });
+        this.userPoolClientId = appClient.userPoolClientId;
+        const authApi = new apig.RestApi(this, "AuthServiceApi", {
+            description: "Authentication Service RestApi",
+            endpointTypes: [apig.EndpointType.REGIONAL],
+            defaultCorsPreflightOptions: {
+                allowOrigins: apig.Cors.ALL_ORIGINS,
+            },
+        });
+        this.auth = authApi.root.addResource("auth");
+
+        this.addAuthRoute(
+            "signup",
+            "POST",
+            "SignupFn",
+            'signup.ts'
+        );
+        this.addAuthRoute(
+            "confirm_signup",
+            "POST",
+            "ConfirmFn",
+            "confirm-signup.ts"
+        );
 
         //permissions
         moviesTable.grantReadData(getMovieByIdFn);
@@ -277,7 +314,6 @@ export class SimpleAppStack extends cdk.Stack {
         const movieReviewsEndpoint = movieEndpoint.addResource("reviews");
         const movieReviewByReviewerNameEndpoint = movieReviewsEndpoint.addResource("{reviewerName}");
         const reviewsReviewerEndpoint = reviewsEndpoint.addResource("{reviewerName}");
-        const reviewByYearEndpoint = movieReviewsEndpoint.addResource("{year}");
         const deleteReviewEndpoint = movieReviewByReviewerNameEndpoint.addResource("delete")
 
         //Methods
@@ -310,83 +346,34 @@ export class SimpleAppStack extends cdk.Stack {
         movieReviewsEndpoint.addMethod(
             "GET",
             new apig.LambdaIntegration(getAllMovieReviewsFn, { proxy: true })
-        )
+        );
         //GET movie review by reviewer name
         movieReviewByReviewerNameEndpoint.addMethod(
             "GET",
             new apig.LambdaIntegration(getMovieReviewByReviewerNameFn, { proxy: true })
-        )
+        );
         //GET all reviews by reviewer name
         reviewsReviewerEndpoint.addMethod(
             "GET",
             new apig.LambdaIntegration(getAllReviewsByReviewerNameFn, { proxy: true })
-        )
+        );
         //POST review
         reviewsEndpoint.addMethod(
             "POST",
             new apig.LambdaIntegration(addReviewFn, { proxy: true })
-        )
+        );
         //PUT review content
         movieReviewByReviewerNameEndpoint.addMethod(
             "PUT",
             new apig.LambdaIntegration(updateReviewContentFn, { proxy: true })
-        )
-        //GET all reviews by Year
-        reviewByYearEndpoint.addMethod(
-            "GET",
-            new apig.LambdaIntegration(getAllReviewsByYearFn, { proxy: true })
-        )
+        );
         //DELETE review
         deleteReviewEndpoint.addMethod(
             "DELETE",
             new apig.LambdaIntegration(deleteReviewFn, { proxy: true })
         );
     }
-}
 
-export class AuthAppStack extends cdk.Stack {
-
-    private auth: apig.IResource;
-    private userPoolId: string;
-    private userPoolClientId: string;
-
-    constructor(scope: Construct, id: string, props?: cdk.StackProps) {
-        super(scope, id, props);
-
-        const userPool = new UserPool(this, "UserPool", {
-            signInAliases: { username: true, email: true },
-            selfSignUpEnabled: true,
-            removalPolicy: cdk.RemovalPolicy.DESTROY,
-        });
-
-        this.userPoolId = userPool.userPoolId;
-
-        const appClient = userPool.addClient("AppClient", {
-            authFlows: { userPassword: true },
-        });
-
-        this.userPoolClientId = appClient.userPoolClientId;
-
-        const authApi = new apig.RestApi(this, "AuthServiceApi", {
-            description: "Authentication Service RestApi",
-            endpointTypes: [apig.EndpointType.REGIONAL],
-            defaultCorsPreflightOptions: {
-                allowOrigins: apig.Cors.ALL_ORIGINS,
-            },
-        });
-
-        this.auth = authApi.root.addResource("auth");
-
-        // NEW
-        this.addAuthRoute(
-            "signup",
-            "POST",
-            "SignupFn",
-            'signup.ts'
-        );
-    }
-
-    // NEW
     private addAuthRoute(
         resourceName: string,
         method: string,
@@ -411,9 +398,10 @@ export class AuthAppStack extends cdk.Stack {
 
         const fn = new node.NodejsFunction(this, fnName, {
             ...commonFnProps,
-            entry: `${__dirname}/../lambdas/auth/${fnEntry}`,
+            entry: `${__dirname}/auth/${fnEntry}`,
         });
 
         resource.addMethod(method, new apig.LambdaIntegration(fn));
-    }
+    } 
+
 }
