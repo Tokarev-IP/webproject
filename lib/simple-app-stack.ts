@@ -7,11 +7,11 @@ import { generateBatch } from "./shared/util";
 import { movies, movieCasts, moviewReviews } from "./seed/movies";
 import { Construct } from 'constructs';
 import * as apig from 'aws-cdk-lib/aws-apigateway';
-
-import { Aws } from "aws-cdk-lib";
 import { UserPool } from "aws-cdk-lib/aws-cognito";
-import * as iam from "aws-cdk-lib/aws-iam";
 import * as node from "aws-cdk-lib/aws-lambda-nodejs";
+
+import { AuthApi } from './auth-api'
+import { AppApi } from './app-api'
 
 export class SimpleAppStack extends cdk.Stack {
     private auth: apig.IResource;
@@ -80,14 +80,18 @@ export class SimpleAppStack extends cdk.Stack {
             }),
         });
 
+        const commonFnProps = {
+            architecture: lambda.Architecture.ARM_64,
+            timeout: cdk.Duration.seconds(10),
+            memorySize: 128,
+            runtime: lambda.Runtime.NODEJS_16_X,
+        };
+
         //Get Movie by Id lambda function
         const getMovieByIdFn = new lambdanode.NodejsFunction(this, "GetMovieByIdFn",
             {
-                architecture: lambda.Architecture.ARM_64,
-                runtime: lambda.Runtime.NODEJS_16_X,
+                ...commonFnProps,
                 entry: `${__dirname}/lambdas/getMovieById.ts`,
-                timeout: cdk.Duration.seconds(10),
-                memorySize: 128,
                 environment: {
                     TABLE_NAME: moviesTable.tableName,
                     TABLE_NAME_CAST: movieCastsTable.tableName,
@@ -99,11 +103,8 @@ export class SimpleAppStack extends cdk.Stack {
         //Get All Movies lambda function
         const getAllMoviesFn = new lambdanode.NodejsFunction(this, "GetAllMoviesFn",
             {
-                architecture: lambda.Architecture.ARM_64,
-                runtime: lambda.Runtime.NODEJS_16_X,
+                ...commonFnProps,
                 entry: `${__dirname}/lambdas/getAllMovies.ts`,
-                timeout: cdk.Duration.seconds(10),
-                memorySize: 128,
                 environment: {
                     TABLE_NAME: moviesTable.tableName,
                     REGION: "us-east-1",
@@ -114,11 +115,8 @@ export class SimpleAppStack extends cdk.Stack {
         //Get MovieCast lambda function
         const getMovieCastMembersFn = new lambdanode.NodejsFunction(this, "GetCastMemberFn",
             {
-                architecture: lambda.Architecture.ARM_64,
-                runtime: lambda.Runtime.NODEJS_16_X,
+                ...commonFnProps,
                 entry: `${__dirname}/lambdas/getMovieCastMember.ts`,
-                timeout: cdk.Duration.seconds(10),
-                memorySize: 128,
                 environment: {
                     TABLE_NAME: movieCastsTable.tableName,
                     REGION: "us-east-1",
@@ -128,11 +126,8 @@ export class SimpleAppStack extends cdk.Stack {
 
         //Post Movie lambda function
         const addMovieFn = new lambdanode.NodejsFunction(this, "Add Movie Fn", {
-            architecture: lambda.Architecture.ARM_64,
-            runtime: lambda.Runtime.NODEJS_16_X,
+            ...commonFnProps,
             entry: `${__dirname}/lambdas/addMovie.ts`,
-            timeout: cdk.Duration.seconds(10),
-            memorySize: 128,
             environment: {
                 TABLE_NAME: moviesTable.tableName,
                 REGION: "us-east-1",
@@ -141,11 +136,8 @@ export class SimpleAppStack extends cdk.Stack {
 
         //Delete Movie by Id lambda function
         const deleteMovieByIdFn = new lambdanode.NodejsFunction(this, "Delete Movie by Id Fn", {
-            architecture: lambda.Architecture.ARM_64,
-            runtime: lambda.Runtime.NODEJS_16_X,
+            ...commonFnProps,
             entry: `${__dirname}/lambdas/deleteMovieById.ts`,
-            timeout: cdk.Duration.seconds(10),
-            memorySize: 128,
             environment: {
                 TABLE_NAME: moviesTable.tableName,
                 REGION: "us-east-1",
@@ -154,11 +146,8 @@ export class SimpleAppStack extends cdk.Stack {
 
         //Get All Reviews of Movie lambda function
         const getAllMovieReviewsFn = new lambdanode.NodejsFunction(this, "Get All Reviews of Movie Fn", {
-            architecture: lambda.Architecture.ARM_64,
-            runtime: lambda.Runtime.NODEJS_16_X,
+            ...commonFnProps,
             entry: `${__dirname}/lambdas/getAllMovieReviews.ts`,
-            timeout: cdk.Duration.seconds(10),
-            memorySize: 128,
             environment: {
                 TABLE_NAME: movieReviewsTable.tableName,
                 REGION: "us-east-1",
@@ -167,11 +156,8 @@ export class SimpleAppStack extends cdk.Stack {
 
         //Get Movie Review by Reviewer Name lambda function
         const getMovieReviewByReviewerNameFn = new lambdanode.NodejsFunction(this, "Get Moview Review by Reviewer Name Fn", {
-            architecture: lambda.Architecture.ARM_64,
-            runtime: lambda.Runtime.NODEJS_16_X,
+            ...commonFnProps,
             entry: `${__dirname}/lambdas/getMovieReviewByReviewerName.ts`,
-            timeout: cdk.Duration.seconds(10),
-            memorySize: 128,
             environment: {
                 TABLE_NAME: movieReviewsTable.tableName,
                 REGION: "us-east-1",
@@ -180,11 +166,8 @@ export class SimpleAppStack extends cdk.Stack {
 
         //Get All Reviews by Reviewer Name lambda function
         const getAllReviewsByReviewerNameFn = new lambdanode.NodejsFunction(this, "Get All Reviews by Reviewer Name Fn", {
-            architecture: lambda.Architecture.ARM_64,
-            runtime: lambda.Runtime.NODEJS_16_X,
+            ...commonFnProps,
             entry: `${__dirname}/lambdas/getAllReviewsByReviewerName.ts`,
-            timeout: cdk.Duration.seconds(10),
-            memorySize: 128,
             environment: {
                 TABLE_NAME: movieReviewsTable.tableName,
                 REGION: "us-east-1",
@@ -193,11 +176,8 @@ export class SimpleAppStack extends cdk.Stack {
 
         //Post Review of a movie lambda function
         const addReviewFn = new lambdanode.NodejsFunction(this, "Post review of a movie", {
-            architecture: lambda.Architecture.ARM_64,
-            runtime: lambda.Runtime.NODEJS_16_X,
+            ...commonFnProps,
             entry: `${__dirname}/lambdas/addReview.ts`,
-            timeout: cdk.Duration.seconds(10),
-            memorySize: 128,
             environment: {
                 TABLE_NAME: movieReviewsTable.tableName,
                 REGION: "us-east-1",
@@ -206,11 +186,8 @@ export class SimpleAppStack extends cdk.Stack {
 
         //Put the review text by reviewerName lambda function
         const updateReviewContentFn = new lambdanode.NodejsFunction(this, "Update text of review by reviewerName", {
-            architecture: lambda.Architecture.ARM_64,
-            runtime: lambda.Runtime.NODEJS_16_X,
+            ...commonFnProps,
             entry: `${__dirname}/lambdas/putReviewContent.ts`,
-            timeout: cdk.Duration.seconds(10),
-            memorySize: 128,
             environment: {
                 TABLE_NAME: movieReviewsTable.tableName,
                 REGION: "us-east-1",
@@ -219,11 +196,8 @@ export class SimpleAppStack extends cdk.Stack {
 
         //Get All Reviews by Year lambda function
         const getAllReviewsByYearFn = new lambdanode.NodejsFunction(this, "Get All Reviews by Year Fn", {
-            architecture: lambda.Architecture.ARM_64,
-            runtime: lambda.Runtime.NODEJS_16_X,
+            ...commonFnProps,
             entry: `${__dirname}/lambdas/getAllReviewsByYear.ts`,
-            timeout: cdk.Duration.seconds(10),
-            memorySize: 128,
             environment: {
                 TABLE_NAME: movieReviewsTable.tableName,
                 REGION: "us-east-1",
@@ -232,11 +206,8 @@ export class SimpleAppStack extends cdk.Stack {
 
         //Delete review by Id and Reviewer Name lambda function
         const deleteReviewFn = new lambdanode.NodejsFunction(this, "Delete review Fn", {
-            architecture: lambda.Architecture.ARM_64,
-            runtime: lambda.Runtime.NODEJS_16_X,
+            ...commonFnProps,
             entry: `${__dirname}/lambdas/deleteReview.ts`,
-            timeout: cdk.Duration.seconds(10),
-            memorySize: 128,
             environment: {
                 TABLE_NAME: movieReviewsTable.tableName,
                 REGION: "us-east-1",
@@ -275,6 +246,76 @@ export class SimpleAppStack extends cdk.Stack {
             "ConfirmFn",
             "confirm-signup.ts"
         );
+        this.addAuthRoute('signout', 'GET', 'SignoutFn', 'signout.ts');
+        this.addAuthRoute('signin', 'POST', 'SigninFn', 'signin.ts');
+
+        // ================================
+        const appApi = new apig.RestApi(this, "AppApi", {
+            description: "App RestApi",
+            endpointTypes: [apig.EndpointType.REGIONAL],
+            defaultCorsPreflightOptions: {
+                allowOrigins: apig.Cors.ALL_ORIGINS,
+            },
+        });
+        const appCommonFnProps = {
+            architecture: lambda.Architecture.ARM_64,
+            timeout: cdk.Duration.seconds(10),
+            memorySize: 128,
+            runtime: lambda.Runtime.NODEJS_16_X,
+            handler: "handler",
+            environment: {
+                USER_POOL_ID: this.userPoolId,
+                CLIENT_ID: this.userPoolClientId,
+                REGION: cdk.Aws.REGION,
+            },
+        };
+        const protectedRes = appApi.root.addResource("protected");
+        const publicRes = appApi.root.addResource("public");
+        const protectedFn = new node.NodejsFunction(this, "ProtectedFn", {
+            ...appCommonFnProps,
+            entry: `${__dirname}/auth/protected.ts`,
+        });
+        const publicFn = new node.NodejsFunction(this, "PublicFn", {
+            ...appCommonFnProps,
+            entry: `${__dirname}/auth/public.ts`,
+        });
+        const authorizerFn = new node.NodejsFunction(this, "AuthorizerFn", {
+            ...appCommonFnProps,
+            entry: `${__dirname}/auth/authorizer.ts`,
+        });
+        const requestAuthorizer = new apig.RequestAuthorizer(
+            this,
+            "RequestAuthorizer",
+            {
+                identitySources: [apig.IdentitySource.header("cookie")],
+                handler: authorizerFn,
+                resultsCacheTtl: cdk.Duration.minutes(0),
+            }
+        );
+        protectedRes.addMethod("GET", new apig.LambdaIntegration(protectedFn), {
+            authorizer: requestAuthorizer,
+            authorizationType: apig.AuthorizationType.CUSTOM,
+        });
+        publicRes.addMethod("GET", new apig.LambdaIntegration(publicFn));
+
+/*        const userPool = new UserPool(this, "UserPool", {
+            signInAliases: { username: true, email: true },
+            selfSignUpEnabled: true,
+            removalPolicy: cdk.RemovalPolicy.DESTROY,
+        });
+        const userPoolId = userPool.userPoolId;
+        const appClient = userPool.addClient("AppClient", {
+            authFlows: { userPassword: true },
+        });
+        const userPoolClientId = appClient.userPoolClientId;
+        new AuthApi(this, 'AuthServiceApi', {
+            userPoolId: userPoolId,
+            userPoolClientId: userPoolClientId,
+        });
+        new AppApi(this, 'AppApi', {
+            userPoolId: userPoolId,
+            userPoolClientId: userPoolClientId,
+        });*/
 
         //permissions
         moviesTable.grantReadData(getMovieByIdFn);
