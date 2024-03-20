@@ -8,26 +8,28 @@ export const handler: APIGatewayProxyHandlerV2 = async (event, context) => {
     try {
         console.log("Event: ", event);
 
-        // Scanning command operation
         const commandOutput = await ddbDocClient.send(
             new ScanCommand({
                 TableName: process.env.TABLE_NAME,
             })
         );
 
-        console.log('ScanCommand response: ', commandOutput)
+        if (commandOutput.Items?.length == 0) {
+            return {
+                statusCode: 404,
+                headers: {
+                    "content-type": "application/json",
+                },
+                body: JSON.stringify({ message: "Empty result" }),
+            };
+        }
 
-        const body = {
-            data: commandOutput.Items,
-        };
-
-        // Return Response
         return {
             statusCode: 200,
             headers: {
                 "content-type": "application/json",
             },
-            body: JSON.stringify(body),
+            body: JSON.stringify(commandOutput.Items),
         };
     } catch (error) {
         console.log(JSON.stringify(error));

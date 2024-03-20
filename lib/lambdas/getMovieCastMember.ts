@@ -1,5 +1,4 @@
 import { APIGatewayProxyHandlerV2 } from "aws-lambda";
-import { MovieCastMemberQueryParams } from "../shared/types";
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient, QueryCommand, QueryCommandInput,} from "@aws-sdk/lib-dynamodb";
 import Ajv from "ajv";
@@ -71,6 +70,16 @@ export const handler: APIGatewayProxyHandlerV2 = async (event, context) => {
     const commandOutput = await ddbDocClient.send(
       new QueryCommand(commandInput)
       );
+
+      if (commandOutput.Items?.length == 0) {
+          return {
+              statusCode: 404,
+              headers: {
+                  "content-type": "application/json",
+              },
+              body: JSON.stringify({ message: "Empty result" }),
+          }
+      };
       
       return {
         statusCode: 200,

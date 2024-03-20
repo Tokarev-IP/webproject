@@ -10,9 +10,6 @@ import * as apig from 'aws-cdk-lib/aws-apigateway';
 import { UserPool } from "aws-cdk-lib/aws-cognito";
 import * as node from "aws-cdk-lib/aws-lambda-nodejs";
 
-import { AuthApi } from './auth-api'
-import { AppApi } from './app-api'
-
 export class SimpleAppStack extends cdk.Stack {
     private auth: apig.IResource;
     private userPoolId: string;
@@ -225,6 +222,8 @@ export class SimpleAppStack extends cdk.Stack {
             authFlows: { userPassword: true },
         });
         this.userPoolClientId = appClient.userPoolClientId;
+
+        //Auth Api
         const authApi = new apig.RestApi(this, "AuthServiceApi", {
             description: "Authentication Service RestApi",
             endpointTypes: [apig.EndpointType.REGIONAL],
@@ -249,7 +248,7 @@ export class SimpleAppStack extends cdk.Stack {
         this.addAuthRoute('signout', 'GET', 'SignoutFn', 'signout.ts');
         this.addAuthRoute('signin', 'POST', 'SigninFn', 'signin.ts');
 
-        // ================================
+        //App Api
         const appApi = new apig.RestApi(this, "AppApi", {
             description: "App RestApi",
             endpointTypes: [apig.EndpointType.REGIONAL],
@@ -269,16 +268,7 @@ export class SimpleAppStack extends cdk.Stack {
                 REGION: cdk.Aws.REGION,
             },
         };
-        const protectedRes = appApi.root.addResource("protected");
-        const publicRes = appApi.root.addResource("public");
-        const protectedFn = new node.NodejsFunction(this, "ProtectedFn", {
-            ...appCommonFnProps,
-            entry: `${__dirname}/auth/protected.ts`,
-        });
-        const publicFn = new node.NodejsFunction(this, "PublicFn", {
-            ...appCommonFnProps,
-            entry: `${__dirname}/auth/public.ts`,
-        });
+
         const authorizerFn = new node.NodejsFunction(this, "AuthorizerFn", {
             ...appCommonFnProps,
             entry: `${__dirname}/auth/authorizer.ts`,
@@ -292,30 +282,6 @@ export class SimpleAppStack extends cdk.Stack {
                 resultsCacheTtl: cdk.Duration.minutes(0),
             }
         );
-        protectedRes.addMethod("GET", new apig.LambdaIntegration(protectedFn), {
-            authorizer: requestAuthorizer,
-            authorizationType: apig.AuthorizationType.CUSTOM,
-        });
-        publicRes.addMethod("GET", new apig.LambdaIntegration(publicFn));
-
-/*        const userPool = new UserPool(this, "UserPool", {
-            signInAliases: { username: true, email: true },
-            selfSignUpEnabled: true,
-            removalPolicy: cdk.RemovalPolicy.DESTROY,
-        });
-        const userPoolId = userPool.userPoolId;
-        const appClient = userPool.addClient("AppClient", {
-            authFlows: { userPassword: true },
-        });
-        const userPoolClientId = appClient.userPoolClientId;
-        new AuthApi(this, 'AuthServiceApi', {
-            userPoolId: userPoolId,
-            userPoolClientId: userPoolClientId,
-        });
-        new AppApi(this, 'AppApi', {
-            userPoolId: userPoolId,
-            userPoolClientId: userPoolClientId,
-        });*/
 
         //permissions
         moviesTable.grantReadData(getMovieByIdFn);
@@ -332,23 +298,9 @@ export class SimpleAppStack extends cdk.Stack {
         movieReviewsTable.grantReadData(getAllReviewsByYearFn)
         movieReviewsTable.grantReadWriteData(deleteReviewFn)
 
-        // REST API 
-        const api = new apig.RestApi(this, "RestAPI", {
-            description: "demo api",
-            deployOptions: {
-                stageName: "dev",
-            },
-            defaultCorsPreflightOptions: {
-                allowHeaders: ["Content-Type", "X-Amz-Date"],
-                allowMethods: ["OPTIONS", "GET", "POST", "PUT", "PATCH", "DELETE"],
-                allowCredentials: true,
-                allowOrigins: ["*"],
-            },
-        });
-
         //Endpoints
-        const moviesEndpoint = api.root.addResource("movies");
-        const reviewsEndpoint = api.root.addResource("reviews");
+        const moviesEndpoint = appApi.root.addResource("movies");
+        const reviewsEndpoint = appApi.root.addResource("reviews");
         const movieEndpoint = moviesEndpoint.addResource("{movieId}");
         const movieCastEndpoint = moviesEndpoint.addResource("cast");
         const deleteMovieEndpoint = movieEndpoint.addResource("delete");
@@ -365,19 +317,23 @@ export class SimpleAppStack extends cdk.Stack {
         );
         //GET movie by Id
         movieEndpoint.addMethod(
-            "GET",
+                "GET",
             new apig.LambdaIntegration(getMovieByIdFn, { proxy: true })
         );
         //POST movie
         moviesEndpoint.addMethod(
             "POST",
-            new apig.LambdaIntegration(addMovieFn, { proxy: true })
-        );
+            new apig.LambdaIntegration(addMovieFn), {
+            authorizer: requestAuthorizer,
+            authorizationType: apig.AuthorizationType.CUSTOM
+        });
         //DELETE movie by Id
         deleteMovieEndpoint.addMethod(
             "DELETE",
-            new apig.LambdaIntegration(deleteMovieByIdFn, { proxy: true })
-        );
+            new apig.LambdaIntegration(deleteMovieByIdFn), {
+            authorizer: requestAuthorizer,
+            authorizationType: apig.AuthorizationType.CUSTOM,
+        });
         //GET movie cast
         movieCastEndpoint.addMethod(
             "GET",
@@ -401,18 +357,24 @@ export class SimpleAppStack extends cdk.Stack {
         //POST review
         reviewsEndpoint.addMethod(
             "POST",
-            new apig.LambdaIntegration(addReviewFn, { proxy: true })
-        );
+            new apig.LambdaIntegration(addReviewFn), {
+            authorizer: requestAuthorizer,
+            authorizationType: apig.AuthorizationType.CUSTOM,
+        });
         //PUT review content
         movieReviewByReviewerNameEndpoint.addMethod(
             "PUT",
-            new apig.LambdaIntegration(updateReviewContentFn, { proxy: true })
-        );
+            new apig.LambdaIntegration(updateReviewContentFn), {
+            authorizer: requestAuthorizer,
+            authorizationType: apig.AuthorizationType.CUSTOM,
+        });
         //DELETE review
         deleteReviewEndpoint.addMethod(
             "DELETE",
-            new apig.LambdaIntegration(deleteReviewFn, { proxy: true })
-        );
+            new apig.LambdaIntegration(deleteReviewFn), {
+            authorizer: requestAuthorizer,
+            authorizationType: apig.AuthorizationType.CUSTOM,
+        });
     }
 
     private addAuthRoute(

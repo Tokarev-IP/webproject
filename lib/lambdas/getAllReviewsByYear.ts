@@ -48,7 +48,7 @@ export const handler: APIGatewayProxyHandlerV2 = async (event, context) => {
         };
 
         const result = commandOutput.Items?.filter((data: any) => {
-            data.reviewDate.split("-")[0] == year
+            return data.reviewDate.split("-")[0] === year;
         })
 
         if (result?.length == 0) {
