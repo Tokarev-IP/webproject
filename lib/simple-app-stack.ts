@@ -18,27 +18,6 @@ export class SimpleAppStack extends cdk.Stack {
     constructor(scope: Construct, id: string, props?: cdk.StackProps) {
         super(scope, id, props);
 
-        //Add a Movie table declaration
-        const moviesTable = new dynamodb.Table(this, "MoviesTable", {
-            billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
-            partitionKey: { name: "id", type: dynamodb.AttributeType.NUMBER },
-            removalPolicy: cdk.RemovalPolicy.DESTROY,
-            tableName: "Movies",
-        });
-
-        //Add a MovieCast table declaration
-        const movieCastsTable = new dynamodb.Table(this, "MovieCastsTable", {
-            billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
-            partitionKey: { name: "movieId", type: dynamodb.AttributeType.NUMBER },
-            sortKey: { name: "actorName", type: dynamodb.AttributeType.STRING },
-            removalPolicy: cdk.RemovalPolicy.DESTROY,
-            tableName: "MovieCast",
-        });
-        movieCastsTable.addLocalSecondaryIndex({
-            indexName: "roleIx",
-            sortKey: { name: "roleName", type: dynamodb.AttributeType.STRING },
-        });
-
         //Add a MoviewReview table declaration
         const movieReviewsTable = new dynamodb.Table(this, "MovieReviewsTable", {
             billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
@@ -65,15 +44,13 @@ export class SimpleAppStack extends cdk.Stack {
                 action: "batchWriteItem",
                 parameters: {
                     RequestItems: {
-                        [moviesTable.tableName]: generateBatch(movies),
-                        [movieCastsTable.tableName]: generateBatch(movieCasts),
                         [movieReviewsTable.tableName]: generateBatch(moviewReviews),
                     },
                 },
                 physicalResourceId: custom.PhysicalResourceId.of("moviesddbInitData"),
             },
             policy: custom.AwsCustomResourcePolicy.fromSdkCalls({
-                resources: [moviesTable.tableArn, movieCastsTable.tableArn, movieReviewsTable.tableArn],
+                resources: [movieReviewsTable.tableArn],
             }),
         });
 
@@ -83,63 +60,6 @@ export class SimpleAppStack extends cdk.Stack {
             memorySize: 128,
             runtime: lambda.Runtime.NODEJS_16_X,
         };
-
-        //Get Movie by Id lambda function
-        const getMovieByIdFn = new lambdanode.NodejsFunction(this, "GetMovieByIdFn",
-            {
-                ...commonFnProps,
-                entry: `${__dirname}/lambdas/getMovieById.ts`,
-                environment: {
-                    TABLE_NAME: moviesTable.tableName,
-                    TABLE_NAME_CAST: movieCastsTable.tableName,
-                    REGION: "us-east-1",
-                },
-            }
-        );
-
-        //Get All Movies lambda function
-        const getAllMoviesFn = new lambdanode.NodejsFunction(this, "GetAllMoviesFn",
-            {
-                ...commonFnProps,
-                entry: `${__dirname}/lambdas/getAllMovies.ts`,
-                environment: {
-                    TABLE_NAME: moviesTable.tableName,
-                    REGION: "us-east-1",
-                },
-            }
-        );
-
-        //Get MovieCast lambda function
-        const getMovieCastMembersFn = new lambdanode.NodejsFunction(this, "GetCastMemberFn",
-            {
-                ...commonFnProps,
-                entry: `${__dirname}/lambdas/getMovieCastMember.ts`,
-                environment: {
-                    TABLE_NAME: movieCastsTable.tableName,
-                    REGION: "us-east-1",
-                },
-            }
-        );
-
-        //Post Movie lambda function
-        const addMovieFn = new lambdanode.NodejsFunction(this, "Add Movie Fn", {
-            ...commonFnProps,
-            entry: `${__dirname}/lambdas/addMovie.ts`,
-            environment: {
-                TABLE_NAME: moviesTable.tableName,
-                REGION: "us-east-1",
-            },
-        });
-
-        //Delete Movie by Id lambda function
-        const deleteMovieByIdFn = new lambdanode.NodejsFunction(this, "Delete Movie by Id Fn", {
-            ...commonFnProps,
-            entry: `${__dirname}/lambdas/deleteMovieById.ts`,
-            environment: {
-                TABLE_NAME: moviesTable.tableName,
-                REGION: "us-east-1",
-            },
-        });
 
         //Get All Reviews of Movie lambda function
         const getAllMovieReviewsFn = new lambdanode.NodejsFunction(this, "Get All Reviews of Movie Fn", {
@@ -284,12 +204,6 @@ export class SimpleAppStack extends cdk.Stack {
         );
 
         //permissions
-        moviesTable.grantReadData(getMovieByIdFn);
-        moviesTable.grantReadData(getAllMoviesFn);
-        moviesTable.grantReadWriteData(addMovieFn);
-        moviesTable.grantReadWriteData(deleteMovieByIdFn);
-        movieCastsTable.grantReadData(getMovieCastMembersFn);
-        movieCastsTable.grantReadData(getMovieByIdFn);
         movieReviewsTable.grantReadData(getAllMovieReviewsFn);
         movieReviewsTable.grantReadData(getMovieReviewByReviewerNameFn)
         movieReviewsTable.grantReadData(getAllReviewsByReviewerNameFn)
@@ -302,43 +216,11 @@ export class SimpleAppStack extends cdk.Stack {
         const moviesEndpoint = appApi.root.addResource("movies");
         const reviewsEndpoint = appApi.root.addResource("reviews");
         const movieEndpoint = moviesEndpoint.addResource("{movieId}");
-        const movieCastEndpoint = moviesEndpoint.addResource("cast");
-        const deleteMovieEndpoint = movieEndpoint.addResource("delete");
         const movieReviewsEndpoint = movieEndpoint.addResource("reviews");
         const movieReviewByReviewerNameEndpoint = movieReviewsEndpoint.addResource("{reviewerName}");
         const reviewsReviewerEndpoint = reviewsEndpoint.addResource("{reviewerName}");
         const deleteReviewEndpoint = movieReviewByReviewerNameEndpoint.addResource("delete")
 
-        //Methods
-        //GET all movies
-        moviesEndpoint.addMethod(
-            "GET",
-            new apig.LambdaIntegration(getAllMoviesFn, { proxy: true })
-        );
-        //GET movie by Id
-        movieEndpoint.addMethod(
-                "GET",
-            new apig.LambdaIntegration(getMovieByIdFn, { proxy: true })
-        );
-        //POST movie
-        moviesEndpoint.addMethod(
-            "POST",
-            new apig.LambdaIntegration(addMovieFn), {
-            authorizer: requestAuthorizer,
-            authorizationType: apig.AuthorizationType.CUSTOM
-        });
-        //DELETE movie by Id
-        deleteMovieEndpoint.addMethod(
-            "DELETE",
-            new apig.LambdaIntegration(deleteMovieByIdFn), {
-            authorizer: requestAuthorizer,
-            authorizationType: apig.AuthorizationType.CUSTOM,
-        });
-        //GET movie cast
-        movieCastEndpoint.addMethod(
-            "GET",
-            new apig.LambdaIntegration(getMovieCastMembersFn, { proxy: true })
-        );
         //GET moview reviews
         movieReviewsEndpoint.addMethod(
             "GET",
