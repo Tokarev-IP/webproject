@@ -10,14 +10,14 @@ export const moviewReviews: MovieReview[] = [
     },
     {
         movieId: 1234,
-        reviewerName: "Jame McRaley",
+        reviewerName: "Jame Maley",
         reviewDate: "2023-12-25",
         content: "a normal film with sad end",
         rating: 3,
     },
     {
         movieId: 2345,
-        reviewerName: "James McRaley",
+        reviewerName: "James Maley",
         reviewDate: "2023-12-27",
         content: "a good film for the weekend time spending",
         rating: 4,
