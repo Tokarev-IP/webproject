@@ -4,7 +4,7 @@ import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as dynamodb from "aws-cdk-lib/aws-dynamodb";
 import * as custom from "aws-cdk-lib/custom-resources";
 import { generateBatch } from "./shared/util";
-import { movies, movieCasts, moviewReviews } from "./seed/movies";
+import { moviewReviews } from "./seed/movies";
 import { Construct } from 'constructs';
 import * as apig from 'aws-cdk-lib/aws-apigateway';
 import { UserPool } from "aws-cdk-lib/aws-cognito";
