@@ -48,7 +48,8 @@ export const handler: APIGatewayProxyHandlerV2 = async (event, context) => {
         }
 
         const movieId = parseInt(pathParameters.movieId);
-        const reviewerName = pathParameters.reviewerName;
+        const reviewerNameString = pathParameters.reviewerName;
+        const reviewerName = reviewerNameString.replace(/([A-Z])/g, ' $1').trim();
 
         let commandInput = {
             TableName: process.env.TABLE_NAME,
