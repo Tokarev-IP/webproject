@@ -219,7 +219,6 @@ export class SimpleAppStack extends cdk.Stack {
         const movieReviewsEndpoint = movieEndpoint.addResource("reviews");
         const movieReviewByReviewerNameEndpoint = movieReviewsEndpoint.addResource("{reviewerName}");
         const reviewsReviewerEndpoint = reviewsEndpoint.addResource("{reviewerName}");
-        const deleteReviewEndpoint = movieReviewByReviewerNameEndpoint.addResource("delete")
 
         //GET moview reviews
         movieReviewsEndpoint.addMethod(
@@ -251,7 +250,7 @@ export class SimpleAppStack extends cdk.Stack {
             authorizationType: apig.AuthorizationType.CUSTOM,
         });
         //DELETE review
-        deleteReviewEndpoint.addMethod(
+        movieReviewByReviewerNameEndpoint.addMethod(
             "DELETE",
             new apig.LambdaIntegration(deleteReviewFn), {
             authorizer: requestAuthorizer,
