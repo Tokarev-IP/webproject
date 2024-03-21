@@ -14,8 +14,6 @@
 - DELETE /prod/movies/{movieId}/reviews/{reviewerName} - delete a moview review by id and reviewerName (need a token) <br>
 - GET /prod/reviews/{reviewerName} - get all reviews by reviewerName (don't need a token) <br>
 
-To get a token it is necessery to SignIn (if a user didn't SignUp before, it is needed to SignUp and confirm it using email address).
-
 ![image](https://github.com/Tokarev-IP/webproject/assets/61622665/ccfcf610-43d7-44de-97a8-58d8c78b9d3a)
 
 ![image](https://github.com/Tokarev-IP/webproject/assets/61622665/98cdf424-4d3d-400f-b57a-5812433cc92d)
