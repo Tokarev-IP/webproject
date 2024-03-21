@@ -1,4 +1,4 @@
-### Serverless REST Assignment
+# Serverless REST Assignment
 
 # Name: Ilia Tokarev 
 
